@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Pedidos - Américo Pizza & Massa</title>
+    <style>
+        /* Estilos da Interface para o Computador/Celular da Atendente */
+        :root {
+            --primary: #c22929;
+            --bg: #f4f4f9;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+        }
+        .form-panel {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 500px;
+            height: fit-content;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        .row {
+            display: flex;
+            gap: 10px;
+        }
+        .row .col {
+            flex: 1;
+        }
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            width: 100%;
+            transition: 0.2s;
+        }
+        button:hover { background-color: #a02020; }
+        .btn-add { background-color: #2b8a3e; margin-top: 10px;}
+        .btn-add:hover { background-color: #216e31; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 20px; font-size: 14px;}
+        table th, table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        table th { background-color: #f2f2f2; }
+        .btn-remove { background-color: #dc3545; padding: 5px; font-size: 12px; }
+
+        /* Estilos Específicos para o Recibo (Prévia e Impressora Térmica 80mm) */
+        .receipt-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .receipt {
+            width: 80mm; /* Tamanho da impressora térmica */
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            color: #000;
+            background: #fff;
+            padding: 10px;
+            box-sizing: border-box;
+            border: 1px dashed #ccc; /* Apenas para visualização na tela */
+        }
+        .receipt img {
+            max-width: 60px;
+            height: auto;
+            margin: 0 auto 10px auto;
+            display: block;
+        }
+        .receipt .center { text-align: center; }
+        .receipt .bold { font-weight: bold; }
+        .receipt .divider { border-bottom: 1px dashed #000; margin: 8px 0; }
+        .receipt .flex-between { display: flex; justify-content: space-between; }
+        .receipt .item-row { display: flex; margin-bottom: 3px; }
+        .receipt .item-qty { width: 35px; }
+        .receipt .item-name { flex: 1; padding-right: 10px;}
+        .receipt .item-price { width: 70px; text-align: right; }
+
+        /* CSS Mágico para Impressão */
+        @media print {
+            body { background: white; margin: 0; padding: 0; display: block; }
+            .form-panel, .print-btn-container { display: none !important; }
+            .receipt-panel { box-shadow: none; padding: 0; margin: 0; align-items: flex-start; }
+            .receipt { 
+                width: 80mm; 
+                border: none; 
+                padding: 0; 
+                margin: 0; 
+            }
+            @page { margin: 0; } /* Remove margens do navegador */
+        }
+    </style>
+</head>
+<body>
+
+    <div class="form-panel">
+        <h2>Novo Pedido</h2>
+        
+        <div class="form-group">
+            <label>Nome do Cliente</label>
+            <input type="text" id="clientName" placeholder="Ex: Thalles Luan" oninput="updateReceipt()">
+        </div>
+        
+        <div class="form-group">
+            <label>Endereço de Entrega</label>
+            <input type="text" id="clientAddress" placeholder="Rua, Número, Bairro" oninput="updateReceipt()">
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+
+        <div class="form-group">
+            <label>Adicionar Item</label>
+            <div class="row">
+                <div class="col" style="flex: 0.3;">
+                    <input type="number" id="itemQty" value="1" min="1" placeholder="Qtd">
+                </div>
+                <div class="col">
+                    <input type="text" id="itemName" placeholder="Ex: Pizza de Tomate Seco">
+                </div>
+                <div class="col" style="flex: 0.5;">
+                    <input type="number" id="itemPrice" placeholder="Valor (R$)" step="0.01">
+                </div>
+            </div>
+            <button class="btn-add" onclick="addItem()">+ Incluir Item</button>
+        </div>
+
+        <table id="itemsTable">
+            <thead>
+                <tr>
+                    <th>Qtd</th>
+                    <th>Item</th>
+                    <th>Valor Un.</th>
+                    <th>Ação</th>
+                </tr>
+            </thead>
+            <tbody>
+                </tbody>
+        </table>
+
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+
+        <div class="form-group">
+            <label>Forma de Pagamento</label>
+            <select id="paymentMethod" onchange="toggleTroco(); updateReceipt()">
+                <option value="PIX">PIX</option>
+                <option value="Cartão de Crédito">Cartão de Crédito</option>
+                <option value="Cartão de Débito">Cartão de Débito</option>
+                <option value="Dinheiro">Dinheiro</option>
+            </select>
+        </div>
+
+        <div class="form-group" id="trocoGroup" style="display: none;">
+            <label>Troco para quanto? (Deixe em branco se não precisar)</label>
+            <input type="number" id="changeAmount" placeholder="Ex: 100" step="0.01" oninput="updateReceipt()">
+        </div>
+
+        <div class="print-btn-container" style="margin-top: 20px;">
+            <button onclick="window.print()" style="font-size: 18px; padding: 15px;">🖨️ IMPRIMIR AGORA</button>
+        </div>
+    </div>
+
+    <div class="receipt-panel">
+        <div class="receipt" id="receipt">
+            <img src="logo.png" alt="Logo Américo">
+            
+            <div class="center bold">Américo Pizza & Massa</div>
+            <div class="center">Telefone: +55 77 99984-0858</div>
+            
+            <div class="divider"></div>
+            
+            <div class="center bold">PEDIDO</div>
+            <div class="center" id="receiptDate"></div>
+            
+            <div class="divider"></div>
+            
+            <div><span class="bold">Cliente:</span> <span id="recClient">-</span></div>
+            <div><span class="bold">Endereço:</span> <span id="recAddress">-</span></div>
+            
+            <div class="divider"></div>
+            
+            <div class="flex-between bold">
+                <span class="item-qty">Qtd</span>
+                <span class="item-name">Item</span>
+                <span class="item-price">Total</span>
+            </div>
+            
+            <div id="receiptItemsList">
+                </div>
+            
+            <div class="divider"></div>
+            
+            <div class="flex-between">
+                <span>Subtotal:</span>
+                <span id="recSubtotal">R$ 0,00</span>
+            </div>
+            <div class="flex-between">
+                <span>Taxa Entrega:</span>
+                <span>R$ 4,00</span>
+            </div>
+            
+            <div class="divider"></div>
+            
+            <div class="flex-between bold" style="font-size: 16px;">
+                <span>TOTAL:</span>
+                <span id="recTotal">R$ 4,00</span>
+            </div>
+            
+            <div class="divider"></div>
+            
+            <div><span class="bold">Pagamento:</span> <span id="recPayment">PIX</span></div>
+            
+            <div class="divider"></div>
+            
+            <div class="center bold" style="margin-top: 15px;">*** FIM DO PEDIDO ***</div>
+            <div class="center">Obrigado pela preferência!</div>
+        </div>
+    </div>
+
+    <script>
+        let items = [];
+        const deliveryFee = 4.00;
+
+        // Atualiza a data e hora em tempo real ao carregar
+        function updateDateTime() {
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('pt-BR');
+            const timeStr = now.toLocaleTimeString('pt-BR');
+            document.getElementById('receiptDate').innerText = `${dateStr} ${timeStr}`;
+        }
+
+        function toggleTroco() {
+            const method = document.getElementById('paymentMethod').value;
+            const trocoGroup = document.getElementById('trocoGroup');
+            if (method === 'Dinheiro') {
+                trocoGroup.style.display = 'block';
+            } else {
+                trocoGroup.style.display = 'none';
+                document.getElementById('changeAmount').value = '';
+            }
+        }
+
+        function formatCurrency(value) {
+            return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        }
+
+        function addItem() {
+            const qty = parseInt(document.getElementById('itemQty').value);
+            const name = document.getElementById('itemName').value;
+            const price = parseFloat(document.getElementById('itemPrice').value);
+
+            if (!qty || !name || !price) {
+                alert("Preencha quantidade, nome e valor do item corretamente.");
+                return;
+            }
+
+            items.push({ qty, name, price });
+            
+            // Limpa os campos após adicionar
+            document.getElementById('itemQty').value = '1';
+            document.getElementById('itemName').value = '';
+            document.getElementById('itemPrice').value = '';
+            document.getElementById('itemName').focus();
+
+            renderTable();
+            updateReceipt();
+        }
+
+        function removeItem(index) {
+            items.splice(index, 1);
+            renderTable();
+            updateReceipt();
+        }
+
+        function renderTable() {
+            const tbody = document.querySelector('#itemsTable tbody');
+            tbody.innerHTML = '';
+            
+            items.forEach((item, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${item.qty}x</td>
+                    <td>${item.name}</td>
+                    <td>${formatCurrency(item.price)}</td>
+                    <td><button class="btn-remove" onclick="removeItem(${index})">X</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateReceipt() {
+            updateDateTime();
+            
+            // Informações do cliente
+            const client = document.getElementById('clientName').value || '___________________';
+            const address = document.getElementById('clientAddress').value || '___________________';
+            document.getElementById('recClient').innerText = client;
+            document.getElementById('recAddress').innerText = address;
+
+            // Pagamento
+            const method = document.getElementById('paymentMethod').value;
+            let paymentText = method;
+            if (method === 'Dinheiro') {
+                const change = document.getElementById('changeAmount').value;
+                if (change && parseFloat(change) > 0) {
+                    paymentText += ` (Troco p/ ${formatCurrency(parseFloat(change))})`;
+                }
+            }
+            document.getElementById('recPayment').innerText = paymentText;
+
+            // Itens e Cálculo
+            const receiptItemsList = document.getElementById('receiptItemsList');
+            receiptItemsList.innerHTML = '';
+            
+            let subtotal = 0;
+
+            items.forEach(item => {
+                const lineTotal = item.qty * item.price;
+                subtotal += lineTotal;
+
+                const div = document.createElement('div');
+                div.className = 'item-row';
+                div.innerHTML = `
+                    <span class="item-qty">${item.qty}x</span>
+                    <span class="item-name">${item.name}</span>
+                    <span class="item-price">${formatCurrency(lineTotal)}</span>
+                `;
+                receiptItemsList.appendChild(div);
+            });
+
+            // Atualiza totais
+            document.getElementById('recSubtotal').innerText = formatCurrency(subtotal);
+            const total = subtotal + (items.length > 0 ? deliveryFee : 0);
+            
+            // Se não houver itens, a taxa não deve somar visualmente no total vazio, mas como a taxa é fixa, ajustamos a lógica:
+            if(items.length === 0) {
+                document.getElementById('recTotal').innerText = formatCurrency(0);
+            } else {
+                document.getElementById('recTotal').innerText = formatCurrency(total);
+            }
+        }
+
+        // Inicializa a data/hora ao abrir
+        updateDateTime();
+        setInterval(updateDateTime, 1000); // Mantém o relógio atualizado até imprimir
+    </script>
+</body>
+</html>
